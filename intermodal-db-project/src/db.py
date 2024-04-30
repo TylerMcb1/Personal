@@ -30,6 +30,7 @@ class Reservation:
     def __hash__(self) -> int:
         return hash(self.res_id)
     
+
 class Timetable:
     def __init__(self, is_departure: bool, city: str, station_name: str,
                  start_time: str, arrival_time: str, num_stops: int):
@@ -53,8 +54,6 @@ class Timetable:
 
     def __repr__(self) -> str:
         return f"Timetable({self.is_departure} {self.city})"
-    
-    #def display(self):
 
 
 class DBManager:
@@ -75,19 +74,137 @@ class DBManager:
         self.connection = None
     
     def connect(self):
-        """ Connects to the PostgreSQL database. """
-        try:
+        """ Connects to the MySQL database. """
+        if self.connection is None or not self.connection.is_connected():
             self.connection = mysql.connector.connect(
                 host = self.host,
                 database = self.database,
                 user = self.user,
                 password = self.password
             )
-        except Error as e:
-            print('Error while attempting to connect to database', e)
 
     def disconnect(self):
-        """ Disconnects from the PostgreSQL database. """
+        """ Disconnects from the MySQL database. """
         if self.connection:
             self.connection.close()
             self.connection = None
+    
+    def get_all_reservations(self) -> list[Reservation]:
+        """ Returns a list of all Reservation objects. """
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                t.reservation_id,
+                p.first_name,
+                p.last_name,
+                s.location AS `start`,
+                e.location AS desination,
+                r.start_time,
+                r.duration 
+            FROM
+                trip t
+                INNER JOIN passenger p ON p.passenger_id = t.passenger_id
+                INNER JOIN route r ON r.route_id = t.route_num
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            ORDER BY
+                r.start_time,
+                s.location ASC;
+            """
+        )
+
+        reservations = []
+        for row in cur.fetchall():
+            reservations.append(Reservation(row[0], row[1], row[2], row[3], 
+                                            row[4], row[5], row[6]))
+        
+        cur.close()
+        return reservations
+    
+    def reservation_search_by_name(self, name: str) -> list[Reservation]:
+        """ 
+        Searches for a Reservation by first and last name.
+
+        Args:
+            name (str): The name of the person with a Reservation
+        """
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                t.reservation_id,
+                p.first_name,
+                p.last_name,
+                s.location AS `start`,
+                e.location AS desination,
+                r.start_time,
+                r.duration 
+            FROM
+                trip t
+                INNER JOIN passenger p ON p.passenger_id = t.passenger_id
+                INNER JOIN route r ON r.route_id = t.route_num
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            WHERE
+                p.first_name LIKE CONCAT('%', %s, '%')
+                OR p.last_name LIKE CONCAT('%', %s, '%')
+            ORDER BY
+                p.first_name,
+                p.last_name,
+                s.location ASC;
+            """,
+            (name, name)
+        )
+
+        reservations = []
+        for row in cur.fetchall():
+            reservations.append(Reservation(row[0], row[1], row[2], row[3], 
+                                            row[4], row[5], row[6]))
+        
+        cur.close()
+        return reservations
+    
+    def reservation_search_by_id(self, res_id: str) -> list[Reservation]:
+        """ 
+        Searches for a Reservation by first and last name.
+
+        Args:
+            name (str): The name of the person with a Reservation
+        """
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                t.reservation_id,
+                p.first_name,
+                p.last_name,
+                s.location AS `start`,
+                e.location AS desination,
+                r.start_time,
+                r.duration 
+            FROM
+                trip t
+                INNER JOIN passenger p ON p.passenger_id = t.passenger_id
+                INNER JOIN route r ON r.route_id = t.route_num
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            WHERE
+                t.reservation_id = %s;
+            """,
+            (res_id,)
+        )
+
+        reservations = []
+        for row in cur.fetchall():
+            reservations.append(Reservation(row[0], row[1], row[2], row[3], 
+                                            row[4], row[5], row[6]))
+        
+        cur.close()
+        return reservations
