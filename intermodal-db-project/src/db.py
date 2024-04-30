@@ -26,26 +26,21 @@ class Reservation:
     
     def __repr__(self) -> str:
         return f"Reservation({self.res_id} {self.first_name} {self.last_name})"
-
-    def __hash__(self) -> int:
-        return hash(self.res_id)
     
 
 class Timetable:
-    def __init__(self, is_departure: bool, city: str, station_name: str,
-                 start_time: str, arrival_time: str, num_stops: int):
+    def __init__(self, city: str, station_name: str, start_time: str, 
+                 arrival_time: str, num_stops: int):
         """
         Initialize a Timetable object.
 
         Parameters:
-            is_departure (bool): 1 if train is departing, 0 if train is arriving
             city (str): The city the train is arriving at/departing from
             station_name (str): The station the train is arriving at/departing from
             start_time (str): The start time of the trip
             arrival_time (str): The arrival time of the trip
             num_stops (int): The number of stops for the trip
         """
-        self.is_departure = is_departure
         self.city = city
         self.station_name = station_name
         self.start_time = start_time
@@ -53,7 +48,7 @@ class Timetable:
         self.num_stops = num_stops
 
     def __repr__(self) -> str:
-        return f"Timetable({self.is_departure} {self.city})"
+        return f"Timetable({self.city})"
 
 
 class DBManager:
@@ -208,3 +203,68 @@ class DBManager:
         
         cur.close()
         return reservations
+    
+    def get_departures(self, city: str) -> list[Timetable]:
+        """
+        Gets all departing trains from a specified city
+
+        Args:
+            city (str): The name of the city
+        """
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT 
+                e.location AS departure,
+                e.`name` AS station_name,
+                r.start_time,
+                ADDTIME(r.start_time, SEC_TO_TIME(r.duration * 60)) AS arrival_time,
+                r.num_stops
+            FROM route r
+                INNER JOIN end_station e ON e.station_id = r.destination
+            WHERE r.`start` = %s;
+            """,
+            (city,)
+        )
+
+        timetable = []
+        for row in cur.fetchall():
+            timetable.append(Timetable(row[0], row[1], row[2], row[3], row[4]))
+        
+        cur.close()
+        return timetable
+    
+    def get_arrivals(self, city: str) -> list[Timetable]:
+        """
+        Gets all arriving trains from a specified city
+
+        Args:
+            city (str): The name of the city
+        """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT 
+                s.location AS departure,
+                s.`name` AS station_name,
+                r.start_time,
+                ADDTIME(r.start_time, SEC_TO_TIME(r.duration * 60)) AS arrival_time,
+                r.num_stops
+            FROM route r
+                INNER JOIN start_station s ON s.station_id = r.`start`
+            WHERE r.`destination` = %s;
+            """,
+            (city,)
+        )
+
+        timetable = []
+        for row in cur.fetchall():
+            timetable.append(Timetable(row[0], row[1], row[2], row[3], row[4]))
+        
+        cur.close()
+        return timetable

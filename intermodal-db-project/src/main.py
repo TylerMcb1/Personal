@@ -105,7 +105,22 @@ def main():
                     reservations = db_manager.reservation_search_by_id(res_id)
                     display_reservations(reservations, f'Reservation ID: {res_id}')
         elif which == 't':
-            print('t')
+            while True:
+                which_res = Prompt.ask(
+                "Access [bold]\[d][/]eparting trains, [bold]\[a][/]arriving trains, or go [bold]\[b][/]ack.",
+                choices=['d', 'a', 'b'],
+                )
+
+                if which_res == 'b':
+                    break
+                elif which_res == 'd':
+                    city = Prompt.ask("Enter city")
+                    departing = db_manager.get_departures(city)
+                    display_timetable(departing, f'Departures from {city}')
+                elif which_res == 'a':
+                    city = Prompt.ask("Enter city")
+                    arriving = db_manager.get_arrivals(city)
+                    display_timetable(arriving, f'Arrivals for {city}')
     
 if __name__ == '__main__':
     main()
