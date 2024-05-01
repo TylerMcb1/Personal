@@ -77,8 +77,8 @@ def main():
 
     while True:
         which = Prompt.ask(
-            "Access [bold]\[r][/]eservation details, [bold]\[t][/]imetable information, or e[bold]\[x][/]it.",
-            choices=['r', 't', 'x'],
+            "Access [bold]\[r][/]eservation details, [bold]\[t][/]imetable information, train [bold]\[d][/]etails, or e[bold]\[x][/]it.",
+            choices=['r', 't', 'd', 'x'],
         )
 
         if which == 'x':
@@ -121,6 +121,10 @@ def main():
                     station_id = Prompt.ask("Enter station ID")
                     arriving = db_manager.get_arrivals(station_id)
                     display_timetable(arriving, f'Arrivals for {station_id}')
+        elif which == 'd':
+            train_id = Prompt.ask("Enter train ID")
+            routes = db_manager.get_routes_by_train(train_id)
+            display_timetable(routes, f'All routes for Train {train_id}')
     
 if __name__ == '__main__':
     main()

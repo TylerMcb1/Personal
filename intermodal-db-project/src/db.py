@@ -204,12 +204,12 @@ class DBManager:
         cur.close()
         return reservations
     
-    def get_departures(self, city: str) -> list[Timetable]:
+    def get_departures(self, station: str) -> list[Timetable]:
         """
-        Gets all departing trains from a specified city
+        Gets all departing trains from a specified station
 
         Args:
-            city (str): The name of the city
+            station (str): The ID of the station
         """
         if not self.connection:
             raise Exception('No connection established to intermodal database')
@@ -234,7 +234,7 @@ class DBManager:
                 r.start_time,
                 arrival_time DESC;
             """,
-            (city,)
+            (station,)
         )
 
         timetable = []
@@ -244,12 +244,12 @@ class DBManager:
         cur.close()
         return timetable
     
-    def get_arrivals(self, city: str) -> list[Timetable]:
+    def get_arrivals(self, station: str) -> list[Timetable]:
         """
-        Gets all arriving trains from a specified city
+        Gets all arriving trains from a specified station
 
         Args:
-            city (str): The name of the city
+            station (str): The ID of the station
         """
 
         if not self.connection:
@@ -275,7 +275,48 @@ class DBManager:
                 arrival_time,
                 r.start_time DESC;
             """,
-            (city,)
+            (station,)
+        )
+
+        timetable = []
+        for row in cur.fetchall():
+            timetable.append(Timetable(row[0], row[1], row[2], row[3], row[4]))
+        
+        cur.close()
+        return timetable
+    
+    def get_routes_by_train(self, train_id: int) -> list[Timetable]:
+        """
+        Gets all routes travelled from a specified train
+
+        Args:
+            train_id (int): The train ID of the routes
+        """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                e.location AS city,
+                e.`name` AS station_name,
+                r.start_time,
+                ADDTIME(
+                    r.start_time,
+                SEC_TO_TIME( r.duration * 60 )) AS arrival_time,
+                r.start_platform 
+            FROM
+                route r
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            WHERE
+                r.train_id = CAST(%s AS UNSIGNED)
+            ORDER BY
+                r.start_time,
+                arrival_time DESC;
+            """,
+            (train_id,)
         )
 
         timetable = []
