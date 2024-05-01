@@ -98,7 +98,7 @@ class DBManager:
                 s.location AS `start`,
                 e.location AS desination,
                 r.start_time,
-                r.duration 
+                SEC_TO_TIME(r.duration * 60) AS duration 
             FROM
                 trip t
                 INNER JOIN passenger p ON p.passenger_id = t.passenger_id
@@ -138,7 +138,7 @@ class DBManager:
                 s.location AS `start`,
                 e.location AS desination,
                 r.start_time,
-                r.duration 
+                SEC_TO_TIME(r.duration * 60) AS duration 
             FROM
                 trip t
                 INNER JOIN passenger p ON p.passenger_id = t.passenger_id
@@ -183,7 +183,7 @@ class DBManager:
                 s.location AS `start`,
                 e.location AS desination,
                 r.start_time,
-                r.duration 
+                SEC_TO_TIME(r.duration * 60) AS duration 
             FROM
                 trip t
                 INNER JOIN passenger p ON p.passenger_id = t.passenger_id
@@ -216,15 +216,23 @@ class DBManager:
         cur = self.connection.cursor()
         cur.execute(
             """
-            SELECT 
-                e.location AS departure,
+            SELECT
+                e.location AS city,
                 e.`name` AS station_name,
                 r.start_time,
-                ADDTIME(r.start_time, SEC_TO_TIME(r.duration * 60)) AS arrival_time,
-                r.num_stops
-            FROM route r
-                INNER JOIN end_station e ON e.station_id = r.destination
-            WHERE r.`start` = %s;
+                ADDTIME(
+                    r.start_time,
+                SEC_TO_TIME( r.duration * 60 )) AS arrival_time,
+                r.start_platform 
+            FROM
+                route r
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            WHERE
+                r.`start` = %s 
+            ORDER BY
+                r.start_time,
+                arrival_time DESC;
             """,
             (city,)
         )
@@ -249,15 +257,23 @@ class DBManager:
         cur = self.connection.cursor()
         cur.execute(
             """
-            SELECT 
-                s.location AS departure,
+            SELECT
+                s.location AS city,
                 s.`name` AS station_name,
                 r.start_time,
-                ADDTIME(r.start_time, SEC_TO_TIME(r.duration * 60)) AS arrival_time,
-                r.num_stops
-            FROM route r
+                ADDTIME(
+                    r.start_time,
+                SEC_TO_TIME( r.duration * 60 )) AS arrival_time,
+                r.end_platform 
+            FROM
+                route r
                 INNER JOIN start_station s ON s.station_id = r.`start`
-            WHERE r.`destination` = %s;
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            WHERE
+                r.`destination` = %s 
+            ORDER BY
+                arrival_time,
+                r.start_time DESC;
             """,
             (city,)
         )

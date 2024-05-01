@@ -5,7 +5,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
-db_name = 'intermodal train db'
+db_name = 'intermodal-train-db'
 
 def display_reservations(reservations: list[Reservation], title: str):
         """
@@ -54,7 +54,7 @@ def display_timetable(timetable: list[Timetable], title: str):
         table.add_column('Station Name')
         table.add_column('Start Time')
         table.add_column('Arrival Time')
-        table.add_column('Number of Stops')
+        table.add_column('Platform')
     
         for entry in timetable:
             table.add_row(
@@ -114,13 +114,13 @@ def main():
                 if which_res == 'b':
                     break
                 elif which_res == 'd':
-                    city = Prompt.ask("Enter city")
-                    departing = db_manager.get_departures(city)
-                    display_timetable(departing, f'Departures from {city}')
+                    station_id = Prompt.ask("Enter station ID")
+                    departing = db_manager.get_departures(station_id)
+                    display_timetable(departing, f'Departures from {station_id}')
                 elif which_res == 'a':
-                    city = Prompt.ask("Enter city")
-                    arriving = db_manager.get_arrivals(city)
-                    display_timetable(arriving, f'Arrivals for {city}')
+                    station_id = Prompt.ask("Enter station ID")
+                    arriving = db_manager.get_arrivals(station_id)
+                    display_timetable(arriving, f'Arrivals for {station_id}')
     
 if __name__ == '__main__':
     main()
