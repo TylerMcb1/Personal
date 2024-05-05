@@ -50,6 +50,58 @@ class Timetable:
     def __repr__(self) -> str:
         return f"Timetable({self.city})"
 
+class Route:
+    def __init__(self, start: str, s_station: str, destination: str, 
+                 e_station, start_time: str, arrival_time: str):
+        """
+        Initialize a Route object.
+
+        Parameters:
+            start (str): The name of the city the train is departing from
+            s_station (str): The name of the station train is departing from
+            destination (str): The name of the city the train is arriving at
+            e_station (str): The name of the station the city is arriving at
+            start_time (str): The start time of the trip
+            arrival_time (str): The arrival time of the trip
+        """
+        self.start = start
+        self.s_station = s_station
+        self.destination = destination
+        self.e_station = e_station
+        self.start_time = start_time
+        self.arrival_time = arrival_time
+    
+    def __repr__(self) -> str:
+        return f"Route({self.start} {self.destination})"
+
+class Train:
+    def __init__(self, train_id: int, make: str, model: str, year: int,
+                 max_speed: int, capacity: int, avg_speed: float, 
+                 total_duration: str):
+        """
+        Initialize a Train object.
+
+        Parameters:
+            train_id (int): The ID of a train
+            make (str): The make of the train
+            model (str): The model of the train
+            year (int): The year of manufacturing of the train
+            max_speed (int): The max speed of the train
+            capacity (int): The capacity of the train
+            avg_speed (float): The average service speed of the train
+            total_duration (str): The total duration of travel of the train
+        """
+        self.train_id = train_id
+        self.make = make
+        self.model = model
+        self.year = year
+        self.max_speed = max_speed
+        self.capacity = capacity
+        self.avg_speed = avg_speed
+        self.total_duration = total_duration
+        
+    def __repr__(self) -> str:
+        return f"Train({self.train_id})"
 
 class DBManager:
     def __init__(self, host: str, database: str, user: str, password: str):
@@ -285,7 +337,7 @@ class DBManager:
         cur.close()
         return timetable
     
-    def get_routes_by_train(self, train_id: int) -> list[Timetable]:
+    def get_routes_by_train(self, train_id: int) -> list[Route]:
         """
         Gets all routes travelled from a specified train
 
@@ -299,13 +351,14 @@ class DBManager:
         cur.execute(
             """
             SELECT
+                s.location AS `start`,
+                s.`name` AS start_station,
                 e.location AS city,
-                e.`name` AS station_name,
+                e.`name` AS end_station,
                 r.start_time,
                 ADDTIME(
                     r.start_time,
-                SEC_TO_TIME( r.duration * 60 )) AS arrival_time,
-                r.start_platform 
+                SEC_TO_TIME( r.duration * 60 )) AS arrival_time
             FROM
                 route r
                 INNER JOIN start_station s ON s.station_id = r.`start`
@@ -319,9 +372,152 @@ class DBManager:
             (train_id,)
         )
 
-        timetable = []
+        routes = []
         for row in cur.fetchall():
-            timetable.append(Timetable(row[0], row[1], row[2], row[3], row[4]))
+            routes.append(Route(row[0], row[1], row[2], row[3], row[4], row[5]))
         
         cur.close()
-        return timetable
+        return routes
+    
+    def get_all_routes(self) -> list[Route]:
+        """ Returns a list of all routes. """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                s.location AS `start`,
+                s.`name` AS start_station,
+                e.location AS city,
+                e.`name` AS end_station,
+                r.start_time,
+                ADDTIME(
+                    r.start_time,
+                SEC_TO_TIME( r.duration * 60 )) AS arrival_time
+            FROM
+                route r
+                INNER JOIN start_station s ON s.station_id = r.`start`
+                INNER JOIN end_station e ON e.station_id = r.destination 
+            ORDER BY
+                r.start_time,
+                arrival_time DESC;
+            """
+        )
+
+        routes = []
+        for row in cur.fetchall():
+            routes.append(Route(row[0], row[1], row[2], row[3], row[4], row[5]))
+        
+        cur.close()
+        return routes
+    
+    def get_all_trains(self) -> list[Train]:
+        """ Returns a list of all active trains. """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                tr.*,
+                AVG( r.service_speed ) AS average_service_speed,
+                SEC_TO_TIME( SUM( r.duration ) * 60 ) AS total_duration 
+            FROM
+                train tr
+                INNER JOIN route r ON r.train_id = tr.train_id 
+                AND r.num_stops = 0 
+            GROUP BY
+                tr.train_id 
+            ORDER BY
+                total_duration DESC;
+            """
+        )
+
+        trains = []
+        for row in cur.fetchall():
+            trains.append(Train(row[0], row[1], row[2], row[3], row[4], 
+                                row[5], row[6], row[7]))
+        
+        cur.close()
+        return trains
+    
+    def get_train_by_id(self, train_id: int) -> list[Train]:
+        """ 
+        Returns the attributes of a train specified by train ID.
+
+        Args:
+            train_id (int): The ID of a train
+        """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                tr.*,
+                AVG( r.service_speed ) AS average_service_speed,
+                SEC_TO_TIME( SUM( r.duration ) * 60 ) AS total_duration 
+            FROM
+                train tr
+                INNER JOIN route r ON r.train_id = tr.train_id 
+                AND r.num_stops = 0
+            WHERE tr.train_id = CAST(%s AS UNSIGNED)
+            GROUP BY
+                tr.train_id 
+            ORDER BY
+                total_duration DESC;
+            """,
+            (train_id,)
+        )
+
+        trains = []
+        for row in cur.fetchall():
+            trains.append(Train(row[0], row[1], row[2], row[3], row[4], 
+                                row[5], row[6], row[7]))
+        
+        cur.close()
+        return trains
+    
+    def get_train_by_station(self, station_id: str) -> list[Train]:
+        """ 
+        Returns the attributes of all train(s) specified by station ID.
+
+        Args:
+            station_id (int): The ID of a station that the train passes through
+        """
+
+        if not self.connection:
+            raise Exception('No connection established to intermodal database')
+        cur = self.connection.cursor()
+        cur.execute(
+            """
+            SELECT
+                tr.*,
+                AVG( r.service_speed ) AS average_service_speed,
+                SEC_TO_TIME( SUM( r.duration ) * 60 ) AS total_duration
+            FROM
+                train tr
+                INNER JOIN route r ON r.train_id = tr.train_id 
+                AND r.num_stops = 0 
+            WHERE
+                r.`start` = %s
+                OR r.destination = %s
+            GROUP BY
+                tr.train_id 
+            ORDER BY
+                total_duration DESC;
+            """,
+            (station_id, station_id)
+        )
+
+        trains = []
+        for row in cur.fetchall():
+            trains.append(Train(row[0], row[1], row[2], row[3], row[4], 
+                                row[5], row[6], row[7]))
+        
+        cur.close()
+        return trains
