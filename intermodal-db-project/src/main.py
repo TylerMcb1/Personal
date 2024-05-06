@@ -1,9 +1,10 @@
 import os
-
-from db import Reservation, Timetable, Route, Train, DBManager
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
+
+from db import DBManager
+from objects import Reservation, Timetable, Route, Train
 
 db_name = 'intermodal-train-db'
 
